@@ -1,0 +1,75 @@
+        .data
+frase:  .space 100                
+msg1:   .asciiz "Digite uma frase: "
+msg2:   .asciiz "Digite o deslocamento (chave): "
+msg3:   .asciiz "Texto cifrado: "
+
+        .text
+        .globl principal
+
+principal:
+        li $v0, 4                 
+        la $a0, msg1              
+        syscall
+
+        li $v0, 8                 
+        la $a0, frase             
+        li $a1, 100               
+        syscall
+
+        li $v0, 4                 
+        la $a0, msg2              
+        syscall
+
+        li $v0, 5                 
+        syscall
+        move $t0, $v0             
+
+        la $t1, frase             
+
+cifra_loop:
+        lb $t2, 0($t1)            
+        beq $t2, $zero, fim      
+
+        li $t3, 65                
+        li $t4, 90                
+        blt $t2, $t3, verifica_min         
+        bgt $t2, $t4, verifica_min         
+
+        sub $t5, $t2, $t3         
+        add $t5, $t5, $t0         
+        li $t6, 26                
+        div $t5, $t6              
+        mfhi $t5                  
+        add $t2, $t5, $t3         
+        j armazena_char          
+
+verifica_min:
+        li $t3, 97                
+        li $t4, 122               
+        blt $t2, $t3, armazena_char  
+        bgt $t2, $t4, armazena_char  
+
+        sub $t5, $t2, $t3         
+        add $t5, $t5, $t0         
+        li $t6, 26                
+        div $t5, $t6              
+        mfhi $t5                  
+        add $t2, $t5, $t3         
+
+armazena_char:
+        sb $t2, 0($t1)            
+        addi $t1, $t1, 1          
+        j cifra_loop              
+
+fim:
+        li $v0, 4                 
+        la $a0, msg3              
+        syscall
+
+        li $v0, 4                 
+        la $a0, frase             
+        syscall
+
+        li $v0, 10                
+        syscall
