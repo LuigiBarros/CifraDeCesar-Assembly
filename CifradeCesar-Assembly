@@ -1,75 +1,196 @@
         .data
-frase:  .space 100                
-msg1:   .asciiz "Digite uma frase: "
-msg2:   .asciiz "Digite o deslocamento (chave): "
-msg3:   .asciiz "Texto cifrado: "
+frase:        	.space 100  # Espaço para armazenar o conteúdo do arquivo
+caminho:        .space 50
+arquivo: 	.space 1000  # Espaço para armazenar o nome do arquivo informado pelo usuário
+boas_vindas:         	.asciiz "Olá, seja bem vindo ao Codificador de César!!\n"
+escolha_opcao:         	.asciiz "Escolha uma das opções a seguir para fazer a criptografia:\n"
+informa_opcoes:         .asciiz "1 - Digitar uma frase / 2 - Ler um arquivo: "
+digite_frase:         	.asciiz "Digite uma frase: "
+digite_deslocamento:    .asciiz "Digite o deslocamento (chave): "
+resultado:         	.asciiz "Texto cifrado:\n"
+orientacoes_escrita:     .asciiz "Atencao ao digitar o caminho do arquivo, evite dar CRTL-V e não erre uma letra.\nExemplo de caminho: C:\\Ragnarock\\teste.txt\n"
+digite_arquivo:      	.asciiz "Digite o caminho do arquivo: "
+msg_erro:               .asciiz "Erro ao abrir o arquivo. Verifique o nome e a localização.\n"
 
         .text
         .globl principal
 
 principal:
+	#Trecho responsável por dar boas-vindas ao usuário
         li $v0, 4                 
-        la $a0, msg1              
+        la $a0, boas_vindas             
+        syscall     
+        #Pede que o usuário escolha uma opção
+        li $v0, 4                 
+        la $a0, escolha_opcao          
+        syscall
+        
+        #Informa as opções
+        li $v0, 4                 
+        la $a0, informa_opcoes         
+        syscall
+        
+        # Ler a opção do usuário e verifica se o usuário escolheu importar um arquivo
+        li $v0, 5                 
+        syscall
+        move $t0, $v0  
+        li $t1, 2     
+        beq $t0, $t1, opcao_arquivo
+
+        # Caso contrário, solicita frase ao usuário
+        li $v0, 4                 
+        la $a0, digite_frase          
         syscall
 
+	#Lê e guarda a frase do usuário
         li $v0, 8                 
         la $a0, frase             
         li $a1, 100               
         syscall
 
+        # Solicita o deslocamento (chave)
         li $v0, 4                 
-        la $a0, msg2              
+        la $a0, digite_deslocamento            
         syscall
 
+	# Grava o inteiro infomrado pelo usuário
         li $v0, 5                 
         syscall
-        move $t0, $v0             
+        move $t0, $v0 # $t0 = $v0(Inteiro informado pelo usuário)
+        la $t1, frase # $t1 = frase(Frase que o usuário escolheu para fazer a criptografia)
 
-        la $t1, frase             
+	# Chama a função para fazer a criptografia
+        j cifra_loop
+
+opcao_arquivo:
+	#Orienta o usuário referente a informar o caminho do .txt corretamente
+	li $v0, 4
+        la $a0, orientacoes_escrita
+        syscall
+
+	 # Solicita o nome do arquivo ao usuário
+        li $v0, 4
+        la $a0, digite_arquivo
+        syscall
+	li $t2, 0
+    
+leia_caractere:
+	# Lê um caractere do usuário e coloca em $t0
+	li $v0, 12   
+   	syscall
+   	move $t0, $v0  
+    	
+    	# Define a condição de parada e verifica se é igual ao caractere informado pelo usuário
+  	li $t1, '\n'
+   	beq $t0, $t1, ler_arquivo # Se for chama ler arquivo
+    
+    	# Se não:
+   	sb $t0, caminho($t2)           # Armazena o caractere lido na frase
+    	addi $t2, $t2, 1             # Incrementa o índice da frase
+   	j leia_caractere             # Continua a ler o próximo caractere
+    
+ler_arquivo:
+        # Tenta abrir o arquivo usando o nome informado pelo usuário
+        li $v0, 13                # Syscall 13: comando para abrir arquivo
+        la $a0, caminho      	  # Endereço do nome do arquivo
+        li $a1, 0                 # Modo de leitura
+        li $a2, 0                 # Sem permissões especiais
+        syscall
+        move $s0, $v0             # Guardar o descritor do arquivo em $s0
+
+        # Verificar se ocorreu um erro ao arquivo, se ocorreu informa mensagem de erro e finaliza o programa
+        bltz $s0, erro
+
+        # Ler o conteúdo do arquivo
+        li $v0, 14                # Syscall 14: comando para ler do arquivo
+        move $a0, $s0             # Descritor do arquivo em $a0
+        la $a1, arquivo           # Endereço para armazenar o conteúdo
+        li $a2, 1000              # Tamanho da frase
+        syscall
+
+        # Fechar o arquivo
+        li $v0, 16                # Syscall 16: fechar o arquivo
+        move $a0, $s0             # Descritor do arquivo em $a0
+        syscall
+
+        # Solicita o deslocamento (chave)
+        li $v0, 4                 
+        la $a0, digite_deslocamento              
+        syscall
+
+	# Lê o inteiro informado pelo usuário
+        li $v0, 5                 
+        syscall
+        move $t0, $v0         
+
+	# $t1 aponta para o conteúdo do arquivo lido
+        la $t1, arquivo    
+        j cifra_loop       
+
+erro:
+        # Exibe mensagem de erro se o arquivo não abrir corretamente e finalaiza o programa
+        li $v0, 4                 
+        la $a0, msg_erro              
+        syscall
+        li $v0, 10                
+        syscall
+
 
 cifra_loop:
-        lb $t2, 0($t1)            
-        beq $t2, $zero, fim      
+        lb $t2, 0($t1)            # Carrega o byte atual em $t2
+        beq $t2, $zero, fim       # SVerifica se chegamos ao final da execução, se sim pula para fim
 
+        # Verifica se é letra maiúscula (A-Z) na Tabela ASCII
         li $t3, 65                
-        li $t4, 90                
+        li $t4, 90
+        # Verifica se está fora dos limites dos valores maiúsculos, se fim pula para verificar se está entre os minúsculos      
         blt $t2, $t3, verifica_min         
         bgt $t2, $t4, verifica_min         
-
-        sub $t5, $t2, $t3         
-        add $t5, $t5, $t0         
-        li $t6, 26                
-        div $t5, $t6              
-        mfhi $t5                  
-        add $t2, $t5, $t3         
-        j armazena_char          
+	
+	# Se está dentro dos limítes pula para criptografar o caractere
+        j aplica_criptografia
 
 verifica_min:
+	# Verifica se é letra mainúscula (a-z) na Tabela ASCII
         li $t3, 97                
         li $t4, 122               
-        blt $t2, $t3, armazena_char  
-        bgt $t2, $t4, armazena_char  
+        # Verifica se está fora dos limites da ASCC
+        blt $t2, $t3, armazena_char  # Se menor que 'a' vai para próximo caractere
+        bgt $t2, $t4, armazena_char  # Se maior que 'z' vai para próximo caractere
 
-        sub $t5, $t2, $t3         
-        add $t5, $t5, $t0         
+	# Se estiver entre os limites segue o fluxo e aplica a criptografia
+
+aplica_criptografia:
+	sub $t5, $t2, $t3         # Subtrae o caractere pelo valor da ASCII
+        add $t5, $t5, $t0         # Adiciona o deslocamento
         li $t6, 26                
-        div $t5, $t6              
-        mfhi $t5                  
-        add $t2, $t5, $t3         
+        div $t5, $t6              # Ajusta para ficar no intervalo 0-25
+        mfhi $t5                  # Arredonda o valor após a divisão
+        add $t2, $t5, $t3         # Adiciona para voltar ao intervalo ASCII
+        
+        # Após o caractere ter sido criptografado segue o fluxo para armazenar o caractere
 
 armazena_char:
-        sb $t2, 0($t1)            
-        addi $t1, $t1, 1          
-        j cifra_loop              
+        sb $t2, 0($t1)            # Armazena o caractere cifrado
+        addi $t1, $t1, 1          # Avançar para o próximo caractere
+        j cifra_loop              # Repetir para o próximo caractere
 
 fim:
+        # Exibe a mensagem de texto cifrado
         li $v0, 4                 
-        la $a0, msg3              
+        la $a0, resultado              
+        syscall
+	
+	# Exibe a frase cifrada (se existir)
+	li $v0, 4                 
+        la $a0, frase            
+        syscall
+	
+	# Exibe o texto cifrado do arquivo (se existir)
+        li $v0, 4                 
+        la $a0, arquivo            
         syscall
 
-        li $v0, 4                 
-        la $a0, frase             
-        syscall
-
+        # Sair do programa
         li $v0, 10                
         syscall
